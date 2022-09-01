@@ -35,6 +35,7 @@ $(function() {
     e.target.select();
   });
   $("input,textarea").on('keyup', function(e) {
+    console.log('KEYUP')
     var json = {};
     var str = $("#curl").val();
     var curl = parse(str);
@@ -53,6 +54,7 @@ $(function() {
       description: options.description || "",
     };
     var headers = curl.header;
+    console.log(headers)
     $.each(headers, function(name, value) {
       if ($("input[name='ignores[]'][value='"+name+"']").is(':checked')) {
         delete curl.header[name];
@@ -67,6 +69,10 @@ $(function() {
     });
     if (curl.body) {
       $.each(convert_request(curl.body, 'form-data', words), function(i, params) {
+        parameters.push(params);
+      });
+
+      $.each(convert_request(curl.body, 'data-raw', words), function(i, params) {
         parameters.push(params);
       });
     }

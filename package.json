@@ -9,6 +9,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "deepmerge": "^4.2.2",
+    "express": "^4.18.1",
     "garlic": "0.0.3",
     "jquery": "^3.1.0",
     "js-yaml": "^3.6.1",

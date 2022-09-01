@@ -15529,7 +15529,10 @@ module.exports = exports.default = function(s) {
       case arg == '-H' || arg == '--header':
         state = 'header'
         break;
-
+		case arg == "--data-raw":
+			out.method = 'post';
+		state = 'raw';
+		break;
       case arg == '-d' || arg == '--data' || arg == '--data-ascii':
         state = 'data'
         break;
@@ -15549,7 +15552,7 @@ module.exports = exports.default = function(s) {
       case arg == '-b' || arg =='--cookie':
         state = 'cookie'
         break;
-      case arg == "--data-binary":
+		case arg == "--data-binary":
         state = 'form'
         break;
       case arg == '--compressed':
@@ -15560,7 +15563,7 @@ module.exports = exports.default = function(s) {
         switch (state) {
           case 'header':
             var field = parseField(arg)
-            out.header[field[0]] = field[1]
+            out.header[field[0]] = field[1] //yon - comment out to hide headers
             if (field[0] == 'Content-Type') {
               if (match = field[1].match(/boundary=(.*?)$/))
                 boundary = match[1]
@@ -15599,6 +15602,14 @@ module.exports = exports.default = function(s) {
                 }
               }
             }
+            state = ''
+            break;
+			case 'raw':
+				try {
+				out.body = JSON.parse(arg)
+				} catch(e) {
+					console.log(e);
+				}
             state = ''
             break;
           case 'data':
@@ -15873,6 +15884,7 @@ $(function() {
     try {
       options = options != "" ? jsyaml.load(options) : {};
     }catch (e) {
+		console.log(e)
       return;
     }
     words = options;
@@ -15884,32 +15896,36 @@ $(function() {
       description: options.description || "",
     };
     var headers = curl.header;
+	var hasBearer = false;
     $.each(headers, function(name, value) {
-      if ($("input[name='ignores[]'][value='"+name+"']").is(':checked')) {
+		if (name == 'authorization' && value.indexOf('Bearer') == 0) {
+			hasBearer = true;
+		}
+      if (name.toLowerCase().indexOf('sec-') == 0 || $("input[name='ignores[]'][value='"+name.toLowerCase()+"']").is(':checked')) {
         delete curl.header[name];
       }
     });
-    // console.log(url);
     
     // Create request parameters
     parameters = [];
     $.each(convert_request(curl.header, 'header', words), function(i, params) {
-      parameters.push(params);
+    //   parameters.push(params);
     });
     if (curl.body) {
       $.each(convert_request(curl.body, 'form-data', words), function(i, params) {
         parameters.push(params);
-      });
+      });	  
     }
+	params = [];
     params = convert_parameters(url.search.substr(1).split('&'));
     $.each(convert_request(params, 'query', words), function(i, params) {
       if (params.name == "")
         return;
       parameters.push(params);
     });
-    // console.log(parameters);
     json[url.pathname][curl.method].parameters = parameters;
-    
+	if (hasBearer) json[url.pathname][curl.method].security = [{"bearerAuth": []}];
+
     // Create response parameters
     $(".responses .row").each(function(i, dom) {
       var response_text = $(dom).find("textarea").val();
@@ -15921,25 +15937,44 @@ $(function() {
       var properties = convert_response(response, words);
       response = {
         description: get_value(words, "response.description", ""),
-        schema: {
-          type: Array.isArray(response) ? 'array' : 'object'
-        }
+		content: {
+			"application/json": {
+				"examples": {
+					"response": {
+						"value": properties
+					}
+				}
+			}
+		}
       }
-      if (Array.isArray(response)) {
-        response.schema.items = properties;
-      } else {
-        response.schema.properties = properties;
-      }
-      
+           
       if (typeof json[url.pathname][curl.method].responses == 'undefined') {
         json[url.pathname][curl.method].responses = {};
       }
+
       json[url.pathname][curl.method].responses[status_code] = response;
     });
+
+
+
     if (!$("#options").is(":focus") && $("#options").val() !== YAML.stringify(words)) {
       $("#options").val(YAML.stringify(words));
     }
-    $("#yaml").val(YAML.stringify(json).replace(/^\-\-\-/, ""));
+    // $("#yaml").val(YAML.stringify(json).replace(/^\-\-\-/, ""));
+const updateSwagger = true;
+
+	if (updateSwagger) {
+		var xhr = new XMLHttpRequest();
+		xhr.open('POST', '/update', true);
+		xhr.setRequestHeader('Content-type', 'application/json');
+		xhr.onload = function () {
+			let data = JSON.parse(this.responseText);
+		console.log(data)
+		};
+		xhr.send(JSON.stringify(json));
+	}
+
+	$('#yaml').val(JSON.stringify(json,null, 2))
   });
   
   function convert_parameters(params) {
@@ -15948,6 +15983,7 @@ $(function() {
     new_params = {};
     names = [];
     $.each(params, function(i, value) {
+		if (value.length == 0) return; 
       values = value.split("=");
       key = decodeURI(values[0]);
       val = decodeURI(values[1]);
